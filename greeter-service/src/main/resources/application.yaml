@@ -1,0 +1,15 @@
+server:
+  port: 9090
+spring:
+  application:
+    name: greeter-service
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:8008/realms/greeter
+          jwk-set-uri: http://localhost:8000/realms/greeter/protocol/openid-connect/certs
+access-token:
+  granted-authorities-claim: "[realm_access][roles]"
+greeting-socket:
+  refresh-rate-ms: 3000

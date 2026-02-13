@@ -1,0 +1,50 @@
+{
+	"name": "OIDC Example",
+	"image": "mcr.microsoft.com/devcontainers/base:noble",
+	"runArgs": ["--add-host=keycloak:127.0.0.1"],
+	"mounts": [
+		"type=bind,source=${localEnv:HOME}${localEnv:USERPROFILE}/.ssh/,target=/home/vscode/.ssh,readonly"
+	],
+	"features": {
+		"ghcr.io/devcontainers/features/docker-in-docker:2": {
+			"moby": false
+		},
+		"ghcr.io/devcontainers/features/node:1": {
+			"version": "22.16.0"
+		},
+		"ghcr.io/devcontainers/features/java:1": {
+			"installMaven": true,
+			"mavenVersion": "3.9.8",
+			"version": "17",
+			"additionalVersions": "21.0.7-ms"
+		},
+		"ghcr.io/devcontainers-extra/features/apt-packages:1": {
+			"packages": "libfreetype6,fontconfig,graphviz"
+		}
+	},
+	"forwardPorts": [
+		8000,
+		8008,
+		8090,
+		9090
+	],
+	"customizations": {
+		"vscode": {
+			"settings": {
+				"plantuml.exportOutDir": ".",
+				"plantuml.exportSubFolder": false,
+				"sonarlint.ls.javaHome": "/usr/local/sdkman/candidates/java/21.0.7-ms",
+				"sonarlint.pathToNodeExecutable": "/usr/local/share/nvm/versions/node/v22.16.0/bin/node"
+			},
+			"extensions": [
+				"donjayamanne.githistory",
+				"mhutchie.git-graph",
+				"humao.rest-client",
+				"jebbs.plantuml",
+				"sonarsource.sonarlint-vscode",
+				"redhat.fabric8-analytics",
+				"vmware.vscode-boot-dev-pack"
+			]
+		}
+	}
+}

@@ -1,0 +1,18 @@
+### Sign In
+
+POST http://localhost:8008/realms/greeter/protocol/openid-connect/token
+Content-Type: application/x-www-form-urlencoded
+
+client_id=test-client&username=greeter&password=greeter&grant_type=password
+
+### Greet
+
+GET http://localhost:9090/greeter/greet
+Authorization: Bearer {access_token}
+
+### Sign Out
+
+POST http://localhost:8008/realms/greeter/protocol/openid-connect/logout
+Content-Type: application/x-www-form-urlencoded
+
+client_id=test-client&refresh_token={refresh_token}
