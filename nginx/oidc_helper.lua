@@ -146,6 +146,102 @@ function _M.set_session(data, max_age)
     return table.concat(cookie_parts, "; ")
 end
 
+function _M.update_session(data)
+    local session_id = ngx.var.cookie_session
+    if not session_id then
+        return false, "no session cookie"
+    end
+
+    local session_json = cjson.encode(data)
+    local success, err = sessions:set(session_id, session_json, 3600)
+    if not success then
+        ngx.log(ngx.ERR, "Failed to update session: ", err or "unknown")
+        return false, err
+    end
+
+    return true
+end
+
+function _M.refresh_access_token(opts)
+    local session = _M.get_session()
+    if not session or not session.refresh_token then
+        return nil, "no session or refresh token"
+    end
+
+    -- Decode access token payload to check exp claim
+    local parts = {}
+    for part in string.gmatch(session.access_token, "[^%.]+") do
+        table.insert(parts, part)
+    end
+
+    if #parts >= 2 then
+        local payload_json = ngx.decode_base64(parts[2])
+        if payload_json then
+            local ok, payload = pcall(cjson.decode, payload_json)
+            if ok and payload.exp then
+                if payload.exp > ngx.time() + 5 then
+                    return session
+                end
+            end
+        end
+    end
+
+    ngx.log(ngx.ERR, "Access token expired or unreadable, refreshing via refresh_token ...")
+
+    local httpc = http.new()
+    httpc:set_timeout(10000)
+
+    local body = {
+        grant_type    = "refresh_token",
+        refresh_token = session.refresh_token,
+        client_id     = opts.client_id,
+        client_secret = opts.client_secret
+    }
+
+    local body_string = {}
+    for k, v in pairs(body) do
+        table.insert(body_string, string.format("%s=%s", ngx.escape_uri(k), ngx.escape_uri(v)))
+    end
+
+    local headers = { ["Content-Type"] = "application/x-www-form-urlencoded" }
+    if opts.token_endpoint_host then
+        headers["Host"] = opts.token_endpoint_host
+    end
+
+    local res, err = httpc:request_uri(opts.token_endpoint, {
+        method  = "POST",
+        body    = table.concat(body_string, "&"),
+        headers = headers
+    })
+
+    if not res then
+        return nil, "Failed to connect to token endpoint: " .. (err or "unknown")
+    end
+
+    if res.status ~= 200 then
+        ngx.log(ngx.ERR, "Token refresh failed (", res.status, "): ", res.body or "")
+        return nil, "Token refresh failed with status " .. res.status
+    end
+
+    local tokens = cjson.decode(res.body)
+
+    session.access_token = tokens.access_token
+    if tokens.refresh_token then
+        session.refresh_token = tokens.refresh_token
+    end
+    if tokens.id_token then
+        session.id_token = tokens.id_token
+    end
+
+    local ok, uerr = _M.update_session(session)
+    if not ok then
+        ngx.log(ngx.ERR, "Failed to persist refreshed session: ", uerr)
+    end
+
+    ngx.log(ngx.ERR, "Access token refreshed successfully")
+    return session
+end
+
 function _M.clear_session()
     -- Delete session from shared dict if it exists
     local session_id = ngx.var.cookie_session

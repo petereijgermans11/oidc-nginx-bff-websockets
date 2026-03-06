@@ -52,17 +52,6 @@ public SecurityFilterChain securityFilterChain(HttpSecurity httpSecurity) throws
   }
 
   @Bean
-  JwtDecoder jwtDecoder(
-      @Value(value = "${spring.security.oauth2.resourceserver.jwt.issuer-uri}") String issuerUri,
-      @Value(value = "${spring.security.oauth2.resourceserver.jwt.jwk-set-uri}") String jwkSetUri) {
-    val result = org.springframework.security.oauth2.jwt.NimbusJwtDecoder.withJwkSetUri(jwkSetUri)
-        .build();
-    result.setJwtValidator(
-        org.springframework.security.oauth2.jwt.JwtValidators.createDefaultWithIssuer(issuerUri));
-    return result;
-  }
-
-  @Bean
   CorsConfigurationSource corsConfigurationSource() {
     val result = new UrlBasedCorsConfigurationSource();
     result.registerCorsConfiguration("/**", new CorsConfiguration().applyPermitDefaultValues());

@@ -66,25 +66,24 @@ function App() {
       
       return () => {
         clearTimeout(timer)
-        // Cleanup WebSocket connection on unmount
         if (stompClientRef.current) {
           try {
-            stompClientRef.current.disconnect()
+            stompClientRef.current.deactivate()
           } catch (err) {
-            console.error('Error disconnecting WebSocket:', err)
+            console.error('Error deactivating WebSocket:', err)
           }
         }
       }
     } else {
       // Disconnect WebSocket if user is not authenticated
       if (stompClientRef.current) {
-        console.log('❌ User not authenticated, disconnecting WebSocket...')
+        console.log('❌ User not authenticated, deactivating WebSocket...')
         try {
-          stompClientRef.current.disconnect()
+          stompClientRef.current.deactivate()
           stompClientRef.current = null
           setWsConnected(false)
         } catch (err) {
-          console.error('Error disconnecting WebSocket:', err)
+          console.error('Error deactivating WebSocket:', err)
         }
       }
     }
@@ -92,80 +91,58 @@ function App() {
 
   const connectWebSocket = () => {
     console.log('🔌 Attempting to connect WebSocket to:', WS_URL)
-    console.log('🍪 Cookies available:', document.cookie)
     console.log('👤 User authenticated:', userInfo?.authenticated)
-    
-    // Don't connect if already connected
-    if (stompClientRef.current && stompClientRef.current.connected) {
-      console.log('⚠️ WebSocket already connected')
+
+    if (stompClientRef.current?.active) {
+      console.log('⚠️ WebSocket already active')
       return
     }
-    
-    // Ensure user is authenticated before connecting
+
     if (!userInfo?.authenticated) {
       console.log('❌ Cannot connect WebSocket: user not authenticated')
       return
     }
-    
-    // Load SockJS and STOMP dynamically
+
     import('sockjs-client').then((SockJSModule: any) => {
       import('@stomp/stompjs').then((Stomp) => {
         const SockJS = SockJSModule.default || SockJSModule
+
+        const stompClient = new Stomp.Client({
         
-        // Create SockJS socket - cookies are sent automatically with same-origin requests
-        // Since we use relative URLs (/ws/greeter), cookies should be sent automatically
-        const socket = new SockJS(WS_URL, null, {
-          transports: ['websocket', 'xhr-streaming', 'xhr-polling']
+          webSocketFactory: () =>
+            new SockJS(WS_URL, null, {
+              transports: ['websocket', 'xhr-streaming', 'xhr-polling']
+            }),
+          reconnectDelay: 5000,
+          debug: (str: string) => {
+            console.log('STOMP:', str)
+          },
+          onConnect: () => {
+            setWsConnected(true)
+            console.log('✅ STOMP connected successfully')
+
+            stompClient.subscribe('/ws/greeting', (message) => {
+              try {
+                const greeting: Greeting = JSON.parse(message.body)
+                console.log('📨 Received greeting:', greeting)
+                setData(greeting)
+              } catch (err) {
+                console.error('Error parsing greeting message:', err)
+              }
+            })
+            console.log('✅ Subscribed to /ws/greeting topic')
+          },
+          onStompError: (frame) => {
+            console.error('❌ STOMP error:', frame.headers['message'], frame.body)
+            setWsConnected(false)
+          },
+          onWebSocketClose: () => {
+            console.log('❌ WebSocket closed – will reconnect automatically')
+            setWsConnected(false)
+          }
         })
-        
-        const stompClient = Stomp.Stomp.over(() => socket)
-        
-        // Enable debug logging to see what's happening
-        stompClient.debug = (str: string) => {
-          console.log('STOMP:', str)
-        }
-        
-        // Set up SockJS connection handlers
-        socket.onopen = () => {
-          console.log('✅ SockJS socket opened successfully')
-        }
-        
-        socket.onclose = (event: any) => {
-          console.log('❌ SockJS socket closed:', event.code, event.reason)
-          setWsConnected(false)
-        }
-        
-        socket.onerror = (error: any) => {
-          console.error('❌ SockJS socket error:', error)
-          setWsConnected(false)
-        }
-        
-        socket.onmessage = (event: any) => {
-          console.log('SockJS message received:', event.data)
-        }
-        
-        // Connect STOMP client
-        stompClient.connect({}, () => {
-          setWsConnected(true)
-          console.log('✅ STOMP connected successfully')
-          
-          // Subscribe to greeting topic
-          stompClient.subscribe('/ws/greeting', (message) => {
-            try {
-              const greeting: Greeting = JSON.parse(message.body)
-              console.log('📨 Received greeting:', greeting)
-              setData(greeting)
-            } catch (err) {
-              console.error('Error parsing greeting message:', err)
-            }
-          })
-          
-          console.log('✅ Subscribed to /ws/greeting topic')
-        }, (error: any) => {
-          console.error('❌ STOMP connection error:', error)
-          setWsConnected(false)
-        })
-        
+
+        stompClient.activate()
         stompClientRef.current = stompClient
       }).catch((err) => {
         console.error('❌ Failed to load STOMP library:', err)
@@ -267,12 +244,11 @@ function App() {
   }
 
   const handleLogout = () => {
-    // Disconnect WebSocket before logout
     if (stompClientRef.current) {
       try {
-        stompClientRef.current.disconnect()
+        stompClientRef.current.deactivate()
       } catch (err) {
-        console.error('Error disconnecting WebSocket:', err)
+        console.error('Error deactivating WebSocket:', err)
       }
     }
     window.location.href = `${GATEWAY_URL}/logout`
